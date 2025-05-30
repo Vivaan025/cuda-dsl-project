@@ -1,0 +1,10 @@
+numpy
+pycuda
+jinja2
+pyyaml
+scipy
+scikit-learn
+scikit-image
+pandas
+matplotlib
+scikit-learn

@@ -13,6 +13,7 @@ def tokenize(expr):
         ('MINUS',     r'-'),
         ('TIMES',     r'\*'),
         ('DIVIDE',    r'/'),
+        ('MATMUL',    r'@'),
         ('LPAREN',    r'\('),
         ('RPAREN',    r'\)'),
         ('SKIP',      r'[ \t\n]+'),
@@ -47,9 +48,9 @@ def parse_expr(ts):
 
 def parse_term(ts):
     left = parse_factor(ts)
-    while ts.peek() and ts.peek()[0] in ['TIMES', 'DIVIDE']:
+    while ts.peek() and ts.peek()[0] in ['TIMES', 'DIVIDE', 'MATMUL']:
         op_token = ts.next()
-        op = '*' if op_token[0] == 'TIMES' else '/'
+        op = {'TIMES': '*', 'DIVIDE': '/', 'MATMUL': '@'}[op_token[0]]
         right = parse_factor(ts)
         left = BinOpNode(left, op, right)
     return left

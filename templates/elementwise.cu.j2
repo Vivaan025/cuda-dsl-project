@@ -1,0 +1,6 @@
+__global__ void {{ kernel_name }}({% for arg in args %}float* {{ arg }}, {% endfor %}int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        {{ output_var }}[i] = {{ expression }};
+    }
+}

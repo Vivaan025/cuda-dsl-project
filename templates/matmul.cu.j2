@@ -1,0 +1,10 @@
+__global__ void {{ kernel_name }}(float* {{ output_var }}, float* {{ left_var }}, float* {{ right_var }}, int M, int N, int P) {
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row < M && col < P) {
+        float sum = 0.0f;
+        for (int k = 0; k < N; ++k)
+            sum += {{ left_var }}[row*N + k] * {{ right_var }}[k*P + col];
+        {{ output_var }}[row*P + col] = sum;
+    }
+}
