@@ -2,7 +2,7 @@
 
 import re
 import collections
-from .ast import AssignNode, BinOpNode, VarNode, NumNode
+from .ast import AssignNode, BinOpNode, VarNode, NumNode, UnaryOpNode, CallNode
 
 def tokenize(expr):
     token_specification = [
@@ -16,6 +16,7 @@ def tokenize(expr):
         ('MATMUL',    r'@'),
         ('LPAREN',    r'\('),
         ('RPAREN',    r'\)'),
+        ('COMMA',     r','),
         ('SKIP',      r'[ \t\n]+'),
         ('MISMATCH',  r'.'),
     ]
@@ -56,14 +57,44 @@ def parse_term(ts):
     return left
 
 def parse_factor(ts):
-    token = ts.next()
+    token = ts.peek()
     if token is None:
         raise SyntaxError("Unexpected end of input")
+    
     kind, value = token
+    
+    # Handle unary operators
+    if kind in ['PLUS', 'MINUS']:
+        op_token = ts.next()
+        op = '+' if op_token[0] == 'PLUS' else '-'
+        operand = parse_factor(ts)
+        return UnaryOpNode(op, operand)
+    
+    token = ts.next()
+    kind, value = token
+    
     if kind == 'NUMBER':
-        return NumNode(int(value))
+        return NumNode(float(value))
     elif kind == 'IDENT':
-        return VarNode(value)
+        # Check for function call
+        next_token = ts.peek()
+        if next_token and next_token[0] == 'LPAREN':
+            ts.next()  # consume '('
+            args = []
+            
+            # Parse arguments
+            if ts.peek() and ts.peek()[0] != 'RPAREN':
+                args.append(parse_expr(ts))
+                while ts.peek() and ts.peek()[0] == 'COMMA':
+                    ts.next()  # consume ','
+                    args.append(parse_expr(ts))
+            
+            if not ts.peek() or ts.next()[0] != 'RPAREN':
+                raise SyntaxError("Expected closing parenthesis")
+            
+            return CallNode(value, args)
+        else:
+            return VarNode(value)
     elif kind == 'LPAREN':
         expr = parse_expr(ts)
         if ts.next()[0] != 'RPAREN':
@@ -92,7 +123,7 @@ def parse_input(expression):
 
 def print_ast(node, level=0):
     indent = '  ' * level
-    from .ast import AssignNode, BinOpNode, VarNode, NumNode
+    from .ast import AssignNode, BinOpNode, VarNode, NumNode, UnaryOpNode, CallNode
     if isinstance(node, AssignNode):
         print(f"{indent}Assign: {node.var_name} =")
         print_ast(node.expr, level + 1)
@@ -100,6 +131,13 @@ def print_ast(node, level=0):
         print(f"{indent}Op: {node.op}")
         print_ast(node.left, level + 1)
         print_ast(node.right, level + 1)
+    elif isinstance(node, UnaryOpNode):
+        print(f"{indent}UnaryOp: {node.op}")
+        print_ast(node.operand, level + 1)
+    elif isinstance(node, CallNode):
+        print(f"{indent}Call: {node.func_name}")
+        for arg in node.args:
+            print_ast(arg, level + 1)
     elif isinstance(node, VarNode):
         print(f"{indent}Var: {node.name}")
     elif isinstance(node, NumNode):

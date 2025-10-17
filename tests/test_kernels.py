@@ -4,6 +4,18 @@ import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
 from frontend.parser import parse_input
 from codegen.cuda_codegen import generate_kernel
+import sys
+import os
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from test_find_roots import test_roots_comprehensive
+    ROOTS_AVAILABLE = True
+except ImportError:
+    ROOTS_AVAILABLE = False
+    print("Warning: Root finding tests not available")
 
 def run_vector_kernel(expr, a, b=None):
     ast = parse_input(expr)
@@ -72,6 +84,15 @@ def test_all():
     B = np.random.randn(128, 32).astype(np.float32)
     C = run_matmul_kernel("C = A @ B", A, B)
     print("Matmul error:", np.max(np.abs(C - np.dot(A, B))))
+    
+    # 6. Root finding tests (if available)
+    if ROOTS_AVAILABLE:
+        print("\n=== Root Finding Tests ===")
+        root_tests_passed = test_roots_comprehensive()
+        if not root_tests_passed:
+            print("Warning: Some root finding tests failed")
+    else:
+        print("Skipping root finding tests (module not available)")
 
 if __name__ == "__main__":
     test_all()

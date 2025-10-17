@@ -1,0 +1,22 @@
+// Numerical differentiation kernel template
+__global__ void {{ kernel_name }}(float* {{ output_var }}, float* {{ input_var }}, int n, float h) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        {% if method == "forward" %}
+        // Forward difference: f'(x) ≈ (f(x+h) - f(x)) / h
+        if (i < n - 1) {
+            {{ output_var }}[i] = ({{ input_var }}[i+1] - {{ input_var }}[i]) / h;
+        }
+        {% elif method == "backward" %}
+        // Backward difference: f'(x) ≈ (f(x) - f(x-h)) / h
+        if (i > 0) {
+            {{ output_var }}[i] = ({{ input_var }}[i] - {{ input_var }}[i-1]) / h;
+        }
+        {% elif method == "central" %}
+        // Central difference: f'(x) ≈ (f(x+h) - f(x-h)) / (2h)
+        if (i > 0 && i < n - 1) {
+            {{ output_var }}[i] = ({{ input_var }}[i+1] - {{ input_var }}[i-1]) / (2.0f * h);
+        }
+        {% endif %}
+    }
+}

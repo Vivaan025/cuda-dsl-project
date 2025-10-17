@@ -1,0 +1,15 @@
+__global__ void {{ kernel_name }}({% for var in output_vars %}float* {{ var }}{% if not loop.last %}, {% endif %}{% endfor %}{% if input_vars %}{% if output_vars %}, {% endif %}{% for var in input_vars %}float* {{ var }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}, int n) {
+    // Optimized CUDA kernel generated from IR
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+    
+    {% if temp_vars %}
+    // Temporary variables (declared once)
+    {% for temp in temp_vars %}
+    float {{ temp }};
+    {% endfor %}
+    {% endif %}
+    
+    // Kernel body
+{{ body | indent(4, true) }}
+}

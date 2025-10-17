@@ -1,0 +1,182 @@
+
+#define M_PI 3.14159265358979323846f
+
+// Helper function to evaluate polynomial at a point
+__device__ float evaluate_polynomial(float x, float* coeffs, int degree) {
+    float result = coeffs[0];
+    float power = x;
+    for (int i = 1; i <= degree; i++) {
+        result += coeffs[i] * power;
+        power *= x;
+    }
+    return result;
+}
+
+// Helper function to evaluate polynomial derivative at a point
+__device__ float evaluate_derivative(float x, float* coeffs, int degree) {
+    float result = coeffs[1];
+    float power = 1.0f;
+    for (int i = 2; i <= degree; i++) {
+        result += i * coeffs[i] * power;
+        power *= x;
+    }
+    return result;
+}
+
+// Helper function to evaluate complex polynomial
+__device__ float2 evaluate_complex_polynomial(float2 z, float* coeffs, int degree) {
+    float2 result = make_float2(coeffs[0], 0.0f);
+    float2 power = z;
+    for (int i = 1; i <= degree; i++) {
+        float2 term = make_float2(
+            coeffs[i] * power.x,
+            coeffs[i] * power.y
+        );
+        result.x += term.x;
+        result.y += term.y;
+        float2 new_power = make_float2(
+            power.x * z.x - power.y * z.y,
+            power.x * z.y + power.y * z.x
+        );
+        power = new_power;
+    }
+    return result;
+}
+
+// Kernel: finds all roots of a polynomial
+__global__ void {{ kernel_name }}(float* roots_real, float* roots_imag, int degree) {
+    // Only one thread needed
+    if (threadIdx.x == 0 && blockIdx.x == 0) {
+        // Initialize coefficients array
+        float coeffs[{{ degree + 1 }}] = {
+            {% for coeff in coeffs %}
+            {{ coeff }}f,
+            {% endfor %}
+        };
+        
+        {% if degree == 1 %}
+        // For linear equations: ax + b = 0 -> x = -b/a
+        float a = coeffs[1];
+        float b = coeffs[0];
+        
+        if (fabsf(a) > 1e-10f) {
+            roots_real[0] = -b / a;
+            roots_imag[0] = 0.0f;
+        } else {
+            // Degenerate case - no solution or infinite solutions
+            roots_real[0] = 0.0f;
+            roots_imag[0] = 0.0f;
+        }
+        
+        {% elif degree == 2 %}
+        // For quadratic equations, use the quadratic formula
+        float a = coeffs[2];
+        float b = coeffs[1];
+        float c = coeffs[0];
+        
+        float discriminant = b * b - 4.0f * a * c;
+        
+        if (fabsf(discriminant) < 1e-6f) {
+            // Double root
+            float root = -b / (2.0f * a);
+            roots_real[0] = root;
+            roots_imag[0] = 0.0f;
+            roots_real[1] = root;
+            roots_imag[1] = 0.0f;
+        } else if (discriminant > 0) {
+            // Two real roots
+            float sqrt_disc = sqrtf(discriminant);
+            roots_real[0] = (-b + sqrt_disc) / (2.0f * a);
+            roots_imag[0] = 0.0f;
+            roots_real[1] = (-b - sqrt_disc) / (2.0f * a);
+            roots_imag[1] = 0.0f;
+        } else {
+            // Complex conjugate roots
+            float sqrt_disc = sqrtf(-discriminant);
+            roots_real[0] = -b / (2.0f * a);
+            roots_imag[0] = sqrt_disc / (2.0f * a);
+            roots_real[1] = -b / (2.0f * a);
+            roots_imag[1] = -sqrt_disc / (2.0f * a);
+        }
+        {% else %}
+        // For higher degrees, use Durand-Kerner method
+        const int max_iterations = 100;
+        const float tolerance = 1e-6f;
+        float2 roots[{{ degree }}];
+        
+        // Initialize roots in a circle with radius based on coefficient magnitudes
+        float max_coeff = 0.0f;
+        for (int i = 0; i <= degree; i++) {
+            max_coeff = fmaxf(max_coeff, fabsf(coeffs[i]));
+        }
+        float radius = 1.0f + max_coeff;
+        
+        for (int j = 0; j < {{ degree }}; j++) {
+            float angle = 2.0f * M_PI * j / {{ degree }};
+            roots[j].x = radius * cosf(angle);
+            roots[j].y = radius * sinf(angle);
+        }
+        
+        // Durand-Kerner iteration
+        for (int iter = 0; iter < max_iterations; iter++) {
+            float max_diff = 0.0f;
+            for (int j = 0; j < {{ degree }}; j++) {
+                float2 numerator = evaluate_complex_polynomial(roots[j], coeffs, degree);
+                float2 denominator = make_float2(1.0f, 0.0f);
+                
+                // Calculate denominator (product of differences)
+                for (int k = 0; k < {{ degree }}; k++) {
+                    if (k != j) {
+                        float2 diff = make_float2(
+                            roots[j].x - roots[k].x,
+                            roots[j].y - roots[k].y
+                        );
+                        float2 temp = make_float2(
+                            denominator.x * diff.x - denominator.y * diff.y,
+                            denominator.x * diff.y + denominator.y * diff.x
+                        );
+                        denominator = temp;
+                    }
+                }
+                
+                // Check for zero denominator
+                float denom = denominator.x * denominator.x + denominator.y * denominator.y;
+                if (fabsf(denom) < 1e-10f) {
+                    continue;
+                }
+                
+                // Calculate quotient
+                float2 quotient = make_float2(
+                    (numerator.x * denominator.x + numerator.y * denominator.y) / denom,
+                    (numerator.y * denominator.x - numerator.x * denominator.y) / denom
+                );
+                
+                // Update root
+                float2 new_root = make_float2(
+                    roots[j].x - quotient.x,
+                    roots[j].y - quotient.y
+                );
+                
+                // Calculate difference
+                float diff = sqrtf(
+                    (new_root.x - roots[j].x) * (new_root.x - roots[j].x) +
+                    (new_root.y - roots[j].y) * (new_root.y - roots[j].y)
+                );
+                max_diff = fmaxf(max_diff, diff);
+                roots[j] = new_root;
+            }
+            
+            // Check convergence
+            if (max_diff < tolerance) {
+                break;
+            }
+        }
+        
+        // Output roots
+        for (int j = 0; j < {{ degree }}; j++) {
+            roots_real[j] = roots[j].x;
+            roots_imag[j] = roots[j].y;
+        }
+        {% endif %}
+    }
+} 

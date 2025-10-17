@@ -1,0 +1,19 @@
+// Trigonometric function kernel template
+__global__ void {{ kernel_name }}(float* {{ output_var }}, float* {{ input_var }}, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        {% if function_type == "sin" %}
+        {{ output_var }}[i] = sinf({{ input_var }}[i]);
+        {% elif function_type == "cos" %}
+        {{ output_var }}[i] = cosf({{ input_var }}[i]);
+        {% elif function_type == "tan" %}
+        {{ output_var }}[i] = tanf({{ input_var }}[i]);
+        {% elif function_type == "sinh" %}
+        {{ output_var }}[i] = sinhf({{ input_var }}[i]);
+        {% elif function_type == "cosh" %}
+        {{ output_var }}[i] = coshf({{ input_var }}[i]);
+        {% elif function_type == "tanh" %}
+        {{ output_var }}[i] = tanhf({{ input_var }}[i]);
+        {% endif %}
+    }
+}
